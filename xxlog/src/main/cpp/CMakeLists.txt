@@ -32,9 +32,9 @@ source_group(crypt\\micro-ecc-master FILES ${SELF_TEMP_SRC_FILES})
 list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
 
 file(GLOB SELF_LOG_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR}
-        Log.cpp
-        Log.h
-        native-lib.cpp)
+        *.cpp
+        *.h
+        *.cc)
 list(APPEND SELF_SRC_FILES ${SELF_LOG_SRC_FILES})
 
 set(SRCFILES ${SELF_SRC_FILES})
@@ -70,4 +70,5 @@ target_link_libraries( # Specifies the target library.
 
                        # Links the target library to the log library
                        # included in the NDK.
-                       ${log-lib} )
+                       ${log-lib}
+                       z)

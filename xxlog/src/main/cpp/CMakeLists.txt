@@ -13,15 +13,40 @@ project("xxlog")
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds them for you.
 # Gradle automatically packages shared libraries with your APK.
+include_directories(.)
+include_directories(./util)
+include_directories(./crypt)
+include_directories(./crypt/micro-ecc-master)
+
+file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} util/*.cc util/*.h)
+source_group(util FILES ${SELF_TEMP_SRC_FILES})
+list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
+
+
+file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} crypt/*.cc crypt/*.h)
+source_group(crypt FILES ${SELF_TEMP_SRC_FILES})
+list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
+
+file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} crypt/micro-ecc-master/*.c crypt/micro-ecc-master/*.h)
+source_group(crypt\\micro-ecc-master FILES ${SELF_TEMP_SRC_FILES})
+list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
+
+file(GLOB SELF_LOG_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR}
+        Log.cpp
+        Log.h
+        native-lib.cpp)
+list(APPEND SELF_SRC_FILES ${SELF_LOG_SRC_FILES})
+
+set(SRCFILES ${SELF_SRC_FILES})
 
 add_library( # Sets the name of the library.
-             native-lib
+             xxlog
 
              # Sets the library as a shared library.
              SHARED
 
              # Provides a relative path to your source file(s).
-             native-lib.cpp )
+             ${SRCFILES})
 
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
@@ -41,7 +66,7 @@ find_library( # Sets the name of the path variable.
 # build script, prebuilt third-party libraries, or system libraries.
 
 target_link_libraries( # Specifies the target library.
-                       native-lib
+                       xxlog
 
                        # Links the target library to the log library
                        # included in the NDK.

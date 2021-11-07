@@ -1,0 +1,3 @@
+rootProject.name = "XXLog"
+include ':app'
+include ':xxlog'

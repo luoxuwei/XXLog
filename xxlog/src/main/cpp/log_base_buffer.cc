@@ -192,7 +192,7 @@ LogBaseBuffer::LogBaseBuffer(void* _pbuffer, size_t _len, bool _isCompress, cons
 : is_compress_(_isCompress), log_crypt_(new LogCrypt(_pubkey))
 , is_crypt_(log_crypt_->IsCrypt()) {
     buff_.Attach(_pbuffer, _len);
-    __Fix();
+    __Fix();//如果buff_中有加密过的数据，就提取出seq和len，并更新buff_的pos和lenght
 }
 
 LogBaseBuffer::~LogBaseBuffer() {
@@ -229,13 +229,16 @@ bool LogBaseBuffer::Write(const void* _data, size_t _length) {
     if (NULL == _data || 0 == _length) {
         return false;
     }
+
+    //写入头部信息, 在_Flush方法里写尾部信息
     if (buff_.Length() == 0) {
         if (!__Reset()) return false;
     }
 
     size_t before_len = buff_.Length();
     size_t write_len = _length;
-    
+
+    //先把日志压缩并写入buff_, 这一步只是暂存，接着会把这段数据加密后再重新写入
     if (is_compress_) {
         uInt avail_out = (uInt)(buff_.MaxLength() - buff_.Length());
         write_len = Compress(_data, _length, buff_.PosPtr(), avail_out);
@@ -247,6 +250,7 @@ bool LogBaseBuffer::Write(const void* _data, size_t _length) {
         buff_.Write(_data, _length);
     }
 
+    //加密起始位置需要减去上次剩余没加密的数据(加密时是循环每次加密一个固定大小的块，所以最终加密的数据是这个块的整数倍，剩下的是余数)
     before_len -= remain_nocrypt_len_;
 
     std::string out_buffer;
@@ -259,6 +263,7 @@ bool LogBaseBuffer::Write(const void* _data, size_t _length) {
     before_len += out_buffer.size();
     buff_.Length(before_len, before_len);
 
+    //更新log的长度，包括加密的和剩余没加密的, 这次加密是从上次剩余没加密的数据开始的，所以要减去last_remain_len
     log_crypt_->UpdateLogLen((char*)buff_.Ptr(), (uint32_t)(out_buffer.size() - last_remain_len));
 
     return true;
@@ -267,11 +272,14 @@ bool LogBaseBuffer::Write(const void* _data, size_t _length) {
 bool LogBaseBuffer::__Reset() {
     __Clear();
 
+    //magic number + seq + hour + hour + len + pub_key
+    //   1         +  2  +  1   +  1   +  4  +   64
     log_crypt_->SetHeaderInfo((char*)buff_.Ptr(), is_compress_, __GetMagicAsyncStart());
     buff_.Length(log_crypt_->GetHeaderLen(), log_crypt_->GetHeaderLen());
     return true;
 }
 
+//写入尾部信息，准备刷盘， 和_clear()配套使用
 void LogBaseBuffer::__Flush() {
     assert(buff_.Length() >= log_crypt_->GetHeaderLen());
 
@@ -286,6 +294,7 @@ void LogBaseBuffer::__Clear() {
     remain_nocrypt_len_ = 0;
 }
 
+//如果buff_中有加密过的数据，就提取出seq和len，并更新buff_的pos和lenght
 void LogBaseBuffer::__Fix() {
     uint32_t raw_log_len = 0;
     if (log_crypt_->Fix((char*) buff_.Ptr(), buff_.Length(), raw_log_len)) {

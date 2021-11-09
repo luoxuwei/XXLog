@@ -17,6 +17,9 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
         binding.sampleText.text = XXLog().stringFromJNI()
+        XXLog.open(XXLog.LEVEL_ALL, XXLog.COMPRESS_LEVEL6,"test/test", "test/test/test", "testtest", "testtesttest");
+        XXLog.setConsoleLogOpen(true);
+        XXLog.i("XXLog", "hello xxlog!!");
     }
 
 }

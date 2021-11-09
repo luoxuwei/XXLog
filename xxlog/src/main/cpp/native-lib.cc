@@ -5,6 +5,8 @@
 #include "util/autobuffer.h"
 #include "log_crypt.h"
 #include "config.h"
+#include "scoped_jstring.h"
+#include "logger.h"
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_luoxuwei_xxlog_XXLog_stringFromJNI(
@@ -18,7 +20,60 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_luoxuwei_xxlog_XXLog_logWrite2
         (JNIEnv *env, jclass, jint _level, jstring _tag, jstring _filename,
          jstring _funcname, jint _line, jint _pid, jlong _tid, jlong _maintid, jstring _log) {
+    if (!Singleton<xxlog::Logger>::getInstance()->IsEnabledFor((xxlog::LogLevel)_level)) {
+        return;
+    }
 
+    xxlog::XXLoggerInfo xxlog_info;
+    gettimeofday(&xxlog_info.timeval, NULL);
+    xxlog_info.level = (xxlog::LogLevel)_level;
+    xxlog_info.line = _line;
+    xxlog_info.pid = _pid;
+    xxlog_info.tid = _tid;
+    xxlog_info.maintid = _maintid;
+
+    const char* tag_cstr = NULL;
+    const char* filename_cstr = NULL;
+    const char* funcname_cstr = NULL;
+    const char* log_cstr = NULL;
+
+    if (NULL != _tag) {
+        tag_cstr = env->GetStringUTFChars(_tag, NULL);
+    }
+
+    if (NULL != _filename) {
+        filename_cstr = env->GetStringUTFChars(_filename, NULL);
+    }
+
+    if (NULL != _funcname) {
+        funcname_cstr = env->GetStringUTFChars(_funcname, NULL);
+    }
+
+    if (NULL != _log) {
+        log_cstr = env->GetStringUTFChars(_log, NULL);
+    }
+
+    xxlog_info.tag = NULL == tag_cstr ? "" : tag_cstr;
+    xxlog_info.filename = NULL == filename_cstr ? "" : filename_cstr;
+    xxlog_info.func_name = NULL == funcname_cstr ? "" : funcname_cstr;
+
+    Singleton<xxlog::Logger>::getInstance()->Write(xxlog_info, NULL == log_cstr? "NULL == log" : log_cstr);
+
+    if (NULL != _tag) {
+        env->ReleaseStringUTFChars(_tag, tag_cstr);
+    }
+
+    if (NULL != _filename) {
+        env->ReleaseStringUTFChars(_filename, filename_cstr);
+    }
+
+    if (NULL != _funcname) {
+        env->ReleaseStringUTFChars(_funcname, funcname_cstr);
+    }
+
+    if (NULL != _log) {
+        env->ReleaseStringUTFChars(_log, log_cstr);
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -56,13 +111,44 @@ Java_com_luoxuwei_xxlog_XXLog_appenderOpen
     _config_field = env->GetFieldID(_config_class, "cachedays", "I");
     jint cachedays = env->GetIntField(_log_config, _config_field);
 
+    std::string cachedir_str;
+    if (NULL != cachedir) {
+        ScopedJstring cachedir_jstr(env, cachedir);
+        cachedir_str = cachedir_jstr.SafeGetChar();
+    }
 
+    std::string pubkey_str;
+    if (NULL != pubkey) {
+        ScopedJstring pubkey_jstr(env, pubkey);
+        pubkey_str = pubkey_jstr.SafeGetChar();
+    }
 
+    std::string logdir_str;
+    if (NULL != logdir) {
+        ScopedJstring logdir_jstr(env, logdir);
+        logdir_str = logdir_jstr.SafeGetChar();
+    }
 
+    std::string nameprefix_str;
+    if (NULL != nameprefix) {
+        ScopedJstring nameprefix_jstr(env, nameprefix);
+        nameprefix_str = nameprefix_jstr.SafeGetChar();
+    }
+
+    xxlog::XXLogConfig config = {(xxlog::AppenderMode)mode, logdir_str, nameprefix_str, pubkey_str,
+                                 (xxlog::CompressMode)compressmode, compresslevel, cachedir_str, cachedays};
+    Singleton<xxlog::Logger>::getInstance()->Open(config);
+    Singleton<xxlog::Logger>::getInstance()->SetLogLevel((xxlog::LogLevel)level);
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_luoxuwei_xxlog_XXLog_getLogLevel
         (JNIEnv *env, jclass clazz) {
-    return kLevelNone;
+    return Singleton<xxlog::Logger>::getInstance()->GetLogLevel();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_luoxuwei_xxlog_XXLog_setConsoleLogOpen
+        (JNIEnv *env, jclass clazz, jboolean _is_open) {
+    Singleton<xxlog::Logger>::getInstance()->SetConsoleLogOpen(_is_open);
 }

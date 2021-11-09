@@ -9,17 +9,20 @@ cmake_minimum_required(VERSION 3.10.2)
 
 project("xxlog")
 
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpic")
+
 include_directories(.)
 include_directories(./util)
+include_directories(./jni)
 include_directories(./crypt)
 include_directories(./crypt/micro-ecc-master)
 
 file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} util/*.cc util/*.h)
 source_group(util FILES ${SELF_TEMP_SRC_FILES})
+list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
+
+file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} jni/*.cc jni/*.h)
+source_group(jni FILES ${SELF_TEMP_SRC_FILES})
 list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})
 
 
@@ -35,10 +38,15 @@ file(GLOB SELF_LOG_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR}
         *.cpp
         *.h
         *.cc)
+
 list(APPEND SELF_SRC_FILES ${SELF_LOG_SRC_FILES})
 
 set(SRCFILES ${SELF_SRC_FILES})
 
+# Creates and names a library, sets it as either STATIC
+# or SHARED, and provides the relative paths to its source code.
+# You can define multiple libraries, and CMake builds them for you.
+# Gradle automatically packages shared libraries with your APK.
 add_library( # Sets the name of the library.
              xxlog
 

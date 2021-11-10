@@ -25,6 +25,14 @@ namespace xxlog {
         pthread_mutex_unlock(&mutex_);
     }
 
+    bool Mutex::IsLocked() {
+        int ret = pthread_mutex_trylock(&mutex_);
+
+        if (0 == ret) Unlock();
+
+        return 0 != ret;
+    }
+
     MutexGuard::MutexGuard(Mutex &_mutex) : mutex_(_mutex) {
         mutex_.Lock();
     }

@@ -7,7 +7,11 @@
 namespace xxlog {
 
     Logger::~Logger() {
-        xxlogger_appender_->Close();
+        if (NULL != xxlogger_appender_ ) {
+            xxlogger_appender_->Close();
+            delete xxlogger_appender_;
+            xxlogger_appender_ = NULL;
+        }
     }
 
     void Logger::SetLogLevel(LogLevel level) {

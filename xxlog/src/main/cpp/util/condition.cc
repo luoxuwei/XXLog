@@ -4,6 +4,7 @@
 #include <errno.h>
 #include "condition.h"
 
+//完善的设计需要处理Notfy和Wait调用顺序不可预测可能导致的问题，Notify比Wait先执行导致信号丢失，Wait线程一直等待，得不到唤醒，但这个项目不会有这样的问题，为了简单不做处理。
 namespace xxlog {
     Condition::Condition(Mutex &_mutex) : mutex_(_mutex) {
         pthread_cond_init(&condvar_, nullptr);

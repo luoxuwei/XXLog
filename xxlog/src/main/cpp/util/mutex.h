@@ -14,6 +14,7 @@ namespace xxlog {
 
         void Lock();
         void Unlock();
+        bool IsLocked();
 
         pthread_mutex_t *GetMutex();
     private:

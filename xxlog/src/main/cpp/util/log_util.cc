@@ -24,6 +24,24 @@ namespace xxlog {
 
     }
 
+    void WriteTips2Console(const char* _tips_format, ...) {
+
+        if (nullptr == _tips_format) {
+            return;
+        }
+
+        XXLoggerInfo info;
+        memset(&info, 0, sizeof(XXLoggerInfo));
+        info.level = kLevelError;
+
+        char tips_info[4096] = {0};
+        va_list ap;
+        va_start(ap, _tips_format);
+        vsnprintf(tips_info, sizeof(tips_info), _tips_format, ap);
+        va_end(ap);
+        ConsoleLog(&info, tips_info);
+    }
+
     const char* ExtractFileName(const char* _path) {
         if (NULL == _path) return "";
 

@@ -145,13 +145,14 @@ namespace xxlog {
         return path_stat.st_size;
     }
 
-    bool OpenMmapFile(const char* _filepath, unsigned int _size, char **_buf) {
+    bool OpenMmapFile(const char* _filepath, unsigned int _size, char **_buf, int *_fd) {
         int fd_ = open(_filepath, O_RDWR | O_CREAT,
                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (fd_ < 0) {
             fprintf(stderr, "open new file failed,errno=%d", errno);
             return false;
         } else {
+            *_fd = fd_;
             int n = ftruncate(fd_, _size);
             (void)n;
             *_buf = (char *)mmap(NULL, _size, PROT_READ | PROT_WRITE,
@@ -161,6 +162,16 @@ namespace xxlog {
                 return false;
             }
         }
-        return false;
+        return true;
+    }
+
+    void CloseMmapFile(int *_fd, char *_buf, int _buf_size) {
+        if (*_fd >= 0) {
+            close(*_fd);
+            *_fd = -1;
+        }
+        if (_buf != MAP_FAILED) {
+            munmap(_buf, _buf_size);
+        }
     }
 }

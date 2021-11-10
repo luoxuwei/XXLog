@@ -9,6 +9,7 @@
 namespace xxlog {
     const char* ExtractFileName(const char* _path);
     void ConsoleLog(const XXLoggerInfo* _info, const char* _log);
+    void WriteTips2Console(const char* _tips_format, ...);
 }
 
 #endif //XXLOG_LOG_UTIL_H

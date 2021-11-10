@@ -7,34 +7,39 @@
 #include "config.h"
 #include "thread.h"
 #include "log_base_buffer.h"
-
+#include "log_file.h"
 namespace xxlog {
 
     class XXLoggerAppender {
     public:
         XXLoggerAppender(const XXLogConfig &_config);
         void SetMaxAliveDuration(long _max_time);
-
+        void SetConsoleLog(bool _is_open);
         void Open(const XXLogConfig &_config);
-
+        void Write(const XXLoggerInfo &_info, const char *_log);
+        void _WriteSync(const XXLoggerInfo &_info, const char *_log);
+        void _WriteAsync(const XXLoggerInfo &_info, const char *_log);
+        void SetMode(AppenderMode _mode);
         void Close();
-
         void Flush();
 
     private:
         void _AsyncLogThread();
-        void _DelTimeoutFile(const std::string &_log_path);
-        void _MoveOldFiles(const std::string& _src_path, const std::string& _dest_path,
-                           const std::string& _nameprefix);
-        bool _AppendFile(const std::string& _src_file, const std::string& _dst_file);
+
     private:
         Thread thread_async_;
-        Mutex mutex_log_file_;
+        LogFile log_file_;
+        Mutex mutex_buffer_async_;
         XXLogConfig config_;
+        bool consolelog_open_ = false;
+        bool log_close_ = true;
+        Condition cond_buffer_async_;
         mars::xlog::LogBaseBuffer* log_buff_ = nullptr;
         uint64_t max_file_size_ = 0; // 0, will not split log file.
-        long max_alive_time_ = 10 * 24 * 60 * 60;    // 10 days in second
+
     };
+
+    void log_formater(const XXLoggerInfo* _info, const char* _logbody, PtrBuffer& _log);
 }
 
 #endif //XXLOG_XXLOGGERAPPENDER_H

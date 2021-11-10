@@ -27,7 +27,8 @@ namespace xxlog {
     int FileNamePos(const std::string &_path);
     std::string FileName(const std::string &_path);
     long FileSize(const std::string &_path);
-    bool OpenMmapFile(const char* _filepath, unsigned int _size, char **_buf);
+    bool OpenMmapFile(const char* _filepath, unsigned int _size, char **_buf, int *_fd);
+    void CloseMmapFile(int *_fd, char *_buf, int _buf_size);
 }
 
 

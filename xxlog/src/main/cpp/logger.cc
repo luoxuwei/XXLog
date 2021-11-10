@@ -32,6 +32,8 @@ namespace xxlog {
 
     void Logger::Write(const XXLoggerInfo &_loggerInfo, const char *_log) {
         if (consolelog_open_) ConsoleLog(&_loggerInfo, _log);
+        if (NULL == xxlogger_appender_) return;
+        xxlogger_appender_->Write(_loggerInfo, _log);
     }
 
     void Logger::SetConsoleLogOpen(bool _isOpen) {
@@ -43,6 +45,7 @@ namespace xxlog {
     }
 
     void Logger::Flush() {
+        if (NULL == xxlogger_appender_) return;
         xxlogger_appender_->Flush();
     }
 

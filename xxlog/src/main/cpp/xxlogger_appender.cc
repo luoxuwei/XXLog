@@ -72,7 +72,7 @@ namespace xxlog {
         log_buff_->Flush(buffer);
 
         {
-            MutexGuard _lock(mutex_log_file_);
+            MutexGuard _lock(mutex_buffer_async_);
             log_close_ = false;
             SetMode(config_.mode);
         }
@@ -99,9 +99,18 @@ namespace xxlog {
 
         AutoBuffer tmp_buff;
         if (!log_buff_->Write(log.Ptr(), log.Length(), tmp_buff)) return;
+        log_file_.Log2File(tmp_buff.Ptr(), tmp_buff.Length(), false);
     }
 
     void XXLoggerAppender::SetConsoleLog(bool _is_open) {
         consolelog_open_ = _is_open;
+    }
+
+    void XXLoggerAppender::SetMaxFileSize(uint64_t _max_byte_size) {
+        log_file_.SetMaxFileSize(_max_byte_size);
+    }
+
+    void XXLoggerAppender::_AsyncLogThread() {
+
     }
 }

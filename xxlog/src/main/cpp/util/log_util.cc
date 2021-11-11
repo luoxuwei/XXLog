@@ -58,4 +58,33 @@ namespace xxlog {
         }
     }
 
+    /*
+     * linux系统取系统时间的api函数有两个gettimeofday和clock_gettime
+     *区别：
+      1、clock_gettime 相比 gettimeofday的精度更高一些，前者精度到 纳秒，而后者精度到微秒。
+      2、clock_gettime可以通过 时钟选项而 得到不同参考下的时间，而gettimeofday则只有一种用途（获取当前系统时间）。
+      常规应用下，使用gettimeofday 即可获取 当前系统时间，对精度要求高，而且有不同需求的，可以使用clock_gettime
+     * */
+    //CLOCK_MONOTONIC 获取系统启动后运行的时间
+    uint64_t gettickcount() {//todoyy
+        struct timespec ts;
+        if (0==clock_gettime(CLOCK_MONOTONIC, &ts)){
+            return (ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000);
+        }
+        return 0;
+    }
+
+    std::string MakeLogFileNamePrefix(const timeval& _tv, const char* _prefix) {
+        time_t sec = _tv.tv_sec;
+        tm tcur = *localtime((const time_t*)&sec);
+
+        char temp [64] = {0};
+        snprintf(temp, 64, "_%d%02d%02d", 1900 + tcur.tm_year, 1 + tcur.tm_mon, tcur.tm_mday);
+
+        std::string filenameprefix = _prefix;
+        filenameprefix += temp;
+
+        return filenameprefix;
+    }
+
 }

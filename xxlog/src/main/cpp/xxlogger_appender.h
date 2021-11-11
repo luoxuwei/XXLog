@@ -20,6 +20,7 @@ namespace xxlog {
         void _WriteSync(const XXLoggerInfo &_info, const char *_log);
         void _WriteAsync(const XXLoggerInfo &_info, const char *_log);
         void SetMode(AppenderMode _mode);
+        void SetMaxFileSize(uint64_t _max_byte_size);
         void Close();
         void Flush();
 
@@ -35,7 +36,6 @@ namespace xxlog {
         bool log_close_ = true;
         Condition cond_buffer_async_;
         mars::xlog::LogBaseBuffer* log_buff_ = nullptr;
-        uint64_t max_file_size_ = 0; // 0, will not split log file.
 
     };
 

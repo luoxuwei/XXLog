@@ -174,4 +174,64 @@ namespace xxlog {
             munmap(_buf, _buf_size);
         }
     }
+
+    bool AppendFile(const std::string& _src_file, const std::string& _dst_file) {
+        if (_src_file == _dst_file) {
+            return false;
+        }
+
+        if (!FileExists(_src_file.c_str())) {
+            return false;
+        }
+
+        if (0 >= FileSize(_src_file)) {
+            return true;
+        }
+
+        FILE* src_file = fopen(_src_file.c_str(), "rb");
+
+        if (nullptr == src_file) {
+            return false;
+        }
+
+        FILE* dest_file = fopen(_dst_file.c_str(), "ab");
+
+        if (nullptr == dest_file) {
+            fclose(src_file);
+            return false;
+        }
+
+        fseek(src_file, 0, SEEK_END);
+        long src_file_len = ftell(src_file);
+        long dst_file_len = ftell(dest_file);
+        fseek(src_file, 0, SEEK_SET);
+
+        char buffer[4096] = {0};
+
+        while (true) {
+            if (feof(src_file)) break;
+
+            size_t read_ret = fread(buffer, 1, sizeof(buffer), src_file);
+
+            if (read_ret == 0)   break;
+
+            if (ferror(src_file)) break;
+
+            fwrite(buffer, 1, read_ret, dest_file);
+
+            if (ferror(dest_file))  break;
+        }
+
+        if (dst_file_len + src_file_len > ftell(dest_file)) {
+            ftruncate(fileno(dest_file), dst_file_len);
+            fclose(src_file);
+            fclose(dest_file);
+            return false;
+        }
+
+        fclose(src_file);
+        fclose(dest_file);
+
+        return true;
+    }
 }

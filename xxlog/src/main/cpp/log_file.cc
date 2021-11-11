@@ -9,7 +9,10 @@
 #include <sys/stat.h>
 #include <util/thread.h>
 #include <zconf.h>
+#include <util/log_util.h>
 #include "log_file.h"
+#include <vector>
+#include <sys/vfs.h>
 
 #define LOG_EXT "xlog"
 
@@ -99,7 +102,7 @@ namespace xxlog {
                 }
             }
 
-            if (!_AppendFile(_path, config_.logdir + "/" + _file_name)) {
+            if (!AppendFile(_path, config_.logdir + "/" + _file_name)) {
                 break;
             }
 
@@ -108,62 +111,28 @@ namespace xxlog {
         closedir(_dir);
     }
 
-    bool LogFile::_AppendFile(const std::string& _src_file, const std::string& _dst_file) {
-        if (_src_file == _dst_file) {
+    bool LogFile::_CacheLogs() {
+        if (config_.cachedir.empty() || config_.cache_days <= 0) {
             return false;
         }
 
-        if (!FileExists(_src_file.c_str())) {
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        char logfilepath[1024] = {0};
+        _MakeLogFileName(tv, config_.logdir, config_.nameprefix.c_str(), LOG_EXT, logfilepath , 1024);
+        if (FileExists(logfilepath)) {
             return false;
         }
 
-        if (0 >= FileSize(_src_file)) {
-            return true;
+        static const uintmax_t kAvailableSizeThreshold = (uintmax_t)1 * 1024 * 1024 * 1024;   // 1G
+        struct statfs vfs;
+        uintmax_t available = 0;
+        if (::statfs(config_.cachedir.c_str(), &vfs) == 0) {
+            available = vfs.f_bavail * vfs.f_bsize;
         }
-
-        FILE* src_file = fopen(_src_file.c_str(), "rb");
-
-        if (nullptr == src_file) {
+        if (available < kAvailableSizeThreshold) {
             return false;
         }
-
-        FILE* dest_file = fopen(_dst_file.c_str(), "ab");
-
-        if (nullptr == dest_file) {
-            fclose(src_file);
-            return false;
-        }
-
-        fseek(src_file, 0, SEEK_END);
-        long src_file_len = ftell(src_file);
-        long dst_file_len = ftell(dest_file);
-        fseek(src_file, 0, SEEK_SET);
-
-        char buffer[4096] = {0};
-
-        while (true) {
-            if (feof(src_file)) break;
-
-            size_t read_ret = fread(buffer, 1, sizeof(buffer), src_file);
-
-            if (read_ret == 0)   break;
-
-            if (ferror(src_file)) break;
-
-            fwrite(buffer, 1, read_ret, dest_file);
-
-            if (ferror(dest_file))  break;
-        }
-
-        if (dst_file_len + src_file_len > ftell(dest_file)) {
-            ftruncate(fileno(dest_file), dst_file_len);
-            fclose(src_file);
-            fclose(dest_file);
-            return false;
-        }
-
-        fclose(src_file);
-        fclose(dest_file);
 
         return true;
     }
@@ -172,5 +141,289 @@ namespace xxlog {
         if (nullptr == _data || 0 == _len || config_.logdir.empty()) {
             return;
         }
+
+        MutexGuard _log_file(mutex_log_file_);
+
+        //如果没有设置缓存目录，就不用考虑任何与缓存有关的情况，写完直接return,
+        // 如果有缓存目录，就算不是优先写缓存，也可以在写正式文件失败后尝试写到缓存里，这些事后面的逻辑
+        if (config_.cachedir.empty()) {
+            if (_OpenLogFile(config_.logdir)) {
+                _WriteFile(_data, _len, logfile_);
+                if (kAppenderAsync == config_.mode) {
+                    _CloseLogFile();
+                }
+            }
+            return;
+        }
+
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+        char logcachefilepath[1024] = {0};
+
+        _MakeLogFileName(tv, config_.cachedir, config_.nameprefix.c_str(), LOG_EXT, logcachefilepath , 1024);
+
+        bool cache_logs = _CacheLogs();
+        if ((cache_logs || FileExists(logcachefilepath)) && _OpenLogFile(config_.cachedir)) {
+            _WriteFile(_data, _len, logfile_);
+            if (kAppenderAsync == config_.mode) {
+                _CloseLogFile();
+            }
+
+            if (cache_logs || !_move_file) {
+                return;
+            }
+
+            char logfilepath[1024] = {0};
+            _MakeLogFileName(tv, config_.logdir, config_.nameprefix.c_str(), LOG_EXT, logfilepath , 1024);
+            if (AppendFile(logcachefilepath, logfilepath)) {
+                if (kAppenderSync == config_.mode) {
+                    _CloseLogFile();
+                }
+                RemoveFileOrDirectory(logcachefilepath);
+            }
+            return;
+        }
+
+        //没有写到缓存目录，尝试写到正式文件
+        bool write_success = false;
+        bool open_success = _OpenLogFile(config_.logdir);
+        if (open_success) {
+            write_success = _WriteFile(_data, _len, logfile_);
+            if (kAppenderAsync == config_.mode) {
+                _CloseLogFile();
+            }
+        }
+
+        //正式文件写失败，但有缓存目录，可以继续尝试写到缓存，多一道防护
+        if (!write_success) {
+            if (open_success && kAppenderSync == config_.mode) {
+                _CloseLogFile();
+            }
+
+            if (_OpenLogFile(config_.cachedir)) {
+                _WriteFile(_data, _len, logfile_);
+                if (kAppenderAsync == config_.mode) {
+                    _CloseLogFile();
+                }
+            }
+        }
+    }
+
+    void LogFile::_CloseLogFile() {
+        MutexGuard _file_log(mutex_log_file_);
+        if (nullptr == logfile_) return;
+
+        openfiletime_ = 0;
+        fclose(logfile_);
+        logfile_ = nullptr;
+    }
+
+    bool LogFile::_OpenLogFile(const std::string &_log_dir) {
+        if (config_.logdir.empty()) return false;
+
+        struct timeval tv;
+        gettimeofday(&tv, nullptr);
+
+        if (nullptr != logfile_) {
+            time_t sec = tv.tv_sec;
+            tm tcur = *localtime((const time_t*)&sec);
+            tm filetm = *localtime(&openfiletime_);
+
+            if (filetm.tm_year == tcur.tm_year
+                && filetm.tm_mon == tcur.tm_mon
+                && filetm.tm_mday == tcur.tm_mday) {
+                return true;
+            }
+
+            fclose(logfile_);
+            logfile_ = nullptr;
+        }
+
+        uint64_t now_tick = gettickcount();
+        time_t now_time = tv.tv_sec;
+
+        openfiletime_ = tv.tv_sec;
+        char logfilepath[1024] = {0};
+        _MakeLogFileName(tv, _log_dir, config_.nameprefix.c_str(), LOG_EXT, logfilepath, 1024);
+
+        if (now_time < last_time_) {
+            logfile_ = fopen(last_file_path_, "ab");
+
+            if (nullptr == logfile_) {
+                WriteTips2Console("open file error:%d %s, path:%s", errno, strerror(errno), last_file_path_);
+            }
+
+            return nullptr != logfile_;
+        }
+
+        logfile_ = fopen(logfilepath, "ab");
+        if (nullptr == logfile_) {
+            WriteTips2Console("open file error:%d %s, path:%s", errno, strerror(errno), logfilepath);
+        }
+
+        if (0 != last_time_ && (now_time - last_time_) > (time_t)((now_tick - last_tick_) / 1000 + 300)) {
+
+            struct tm tm_tmp = *localtime((const time_t*)&last_time_);
+            char last_time_str[64] = {0};
+            strftime(last_time_str, sizeof(last_time_str), "%Y-%m-%d %z %H:%M:%S", &tm_tmp);
+
+            tm_tmp = *localtime((const time_t*)&now_time);
+            char now_time_str[64] = {0};
+            strftime(now_time_str, sizeof(now_time_str), "%Y-%m-%d %z %H:%M:%S", &tm_tmp);
+
+            char log[1024] = {0};
+            snprintf(log, sizeof(log), "[F][ last log file:%s from %s to %s, time_diff:%ld, tick_diff:%u\n",
+                    last_file_path_, last_time_str, now_time_str, now_time-last_time_, now_tick-last_tick_);
+
+/*            AutoBuffer tmp_buff;
+            log_buff_->Write(log, strnlen(log, sizeof(log)), tmp_buff);
+            __WriteFile(tmp_buff.Ptr(), tmp_buff.Length(), logfile_);*/
+        }
+
+        memcpy(last_file_path_, logfilepath, sizeof(last_file_path_));
+        last_tick_ = now_tick;
+        last_time_ = now_time;
+
+        return nullptr != logfile_;
+    }
+
+    void LogFile::_MakeLogFileName(const timeval &_tv, const std::string &_logdir,
+                                   const char *_prefix, const std::string &_fileext,
+                                   char *_filepath, unsigned int _len) {
+        long index = 0;
+        std::string logfilenameprefix = MakeLogFileNamePrefix(_tv, _prefix);//prefix_20211101
+        if (max_file_size_ > 0) {
+            index = _GetNextFileIndex(logfilenameprefix, _fileext);
+        }
+
+        std::string logfilepath = _logdir;
+        logfilepath += "/";
+        logfilepath += logfilenameprefix;
+
+        if (index > 0) {
+            char temp[24] = {0};
+            snprintf(temp, 24, "_%ld", index);
+            logfilepath += temp;
+        }
+
+        logfilepath += ".";
+        logfilepath += _fileext;
+
+        strncpy(_filepath, logfilepath.c_str(), _len - 1);
+        _filepath[_len - 1] = '\0';
+    }
+
+    static bool __string_compare_greater(const std::string& s1, const std::string& s2) {
+        if (s1.length() == s2.length()) {
+            return s1 > s2;
+        }
+        return s1.length() > s2.length();
+    }
+
+    long LogFile::_GetNextFileIndex(const std::string &_fileprefix, const std::string &_fileext) {
+        std::vector<std::string> filename_vec;
+        _GetFileNamesByPrefix(config_.logdir, _fileprefix, _fileext, filename_vec);
+        if (!config_.cachedir.empty()) {
+            _GetFileNamesByPrefix(config_.cachedir, _fileprefix, _fileext, filename_vec);
+        }
+
+        long index = 0; // long is enought to hold all indexes in one day.
+        if (filename_vec.empty()) {
+            return index;
+        }
+
+        // high -> low
+        std::sort(filename_vec.begin(), filename_vec.end(), __string_compare_greater);
+        std::string last_filename = *(filename_vec.begin());
+        std::size_t ext_pos = last_filename.rfind("." + _fileext);
+        std::size_t index_len = ext_pos - _fileprefix.length();
+        if (index_len > 0) {
+            std::string index_str = last_filename.substr(_fileprefix.length(), index_len);
+            if (strutil::StartsWith(index_str, "_")) {
+                index_str = index_str.substr(1);
+            }
+            index = atol(index_str.c_str());
+        }
+
+        uint64_t filesize = 0;
+        std::string logfilepath = config_.logdir + "/" + last_filename;
+        if (FileExists(logfilepath.c_str())) {
+            filesize += FileSize(logfilepath);
+        }
+
+        if (!config_.cachedir.empty()) {
+            logfilepath = config_.cachedir + "/" + last_filename;
+            if (FileExists(logfilepath.c_str())) {
+                filesize += FileSize(logfilepath);
+            }
+        }
+        return (filesize > max_file_size_) ? index + 1 : index;
+    }
+
+    void LogFile::_GetFileNamesByPrefix(const std::string &_logdir, const std::string &_fileprefix,
+                                        const std::string &_fileext,
+                                        std::vector<std::string> &_filename_vec) {
+        if (directory_file != FileStatus(_logdir.c_str())) {
+            return;
+        }
+
+        std::string filename;
+        DIR *_dir = NULL;
+        struct dirent *_pdirent = NULL;
+
+        _dir = opendir(_logdir.c_str());
+        if (NULL == _dir) {
+            fprintf(stderr, "opendir %s failed,errno=%d", _logdir.c_str(), errno);
+            return;
+        }
+
+        while (NULL != (_pdirent = readdir(_dir))) {
+            std::string _path(_pdirent->d_name);
+            std::string _file_name = FileName(_path);
+            if (strutil::StartsWith(_file_name, _fileprefix) && strutil::EndsWith(_file_name, LOG_EXT)) {
+                _filename_vec.push_back(_file_name);
+            }
+        }
+        closedir(_dir);
+    }
+
+    bool LogFile::_WriteFile(const void *_data, size_t _len, FILE *_file) {
+        if (nullptr == _file) {
+            assert(false);
+            return false;
+        }
+
+        long before_len = ftell(_file);
+        if (before_len < 0) return false;
+
+        if (1 != fwrite(_data, _len, 1, _file)) {
+            int err = ferror(_file);
+
+            WriteTips2Console("write file error:%d", err);
+
+            ftruncate(fileno(_file), before_len);
+            fseek(_file, 0, SEEK_END);
+
+            /*char err_log[256] = {0};
+            snprintf(err_log, sizeof(err_log), "\nwrite file error:%d\n", err);
+
+            AutoBuffer tmp_buff;
+            log_buff_->Write(err_log, strnlen(err_log, sizeof(err_log)), tmp_buff);
+
+            fwrite(tmp_buff.Ptr(), tmp_buff.Length(), 1, _file);*/
+
+            return false;
+        }
+
+        return true;
+    }
+
+    void LogFile::SetMaxFileSize(uint64_t _max_byte_size) {
+        max_file_size_ = _max_byte_size;
+    }
+
+    void LogFile::SetMode(AppenderMode _mode) {
+        MutexGuard _file_lock(mutex_log_file_);
+        config_.mode = _mode;
     }
 }

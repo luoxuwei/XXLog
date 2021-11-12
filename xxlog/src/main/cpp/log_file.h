@@ -7,6 +7,7 @@
 #include <string>
 #include "config.h"
 #include "mutex.h"
+#include "log_base_buffer.h"
 
 namespace xxlog {
     enum class FileWriterType : uint8_t { MMAPFILE = 0, APPENDFILE };
@@ -25,6 +26,7 @@ namespace xxlog {
         void SetMaxAliveDuration(long _max_time);
         void Log2File(const void* _data, size_t _len, bool _move_file);
         void Open();
+        void CloseLogFile();
         void WriteTips2File(const char* _tips_format, ...);
         void SetMaxFileSize(uint64_t _max_byte_size);
         void SetMode(AppenderMode _mode);
@@ -45,7 +47,7 @@ namespace xxlog {
                                    const std::string& _fileext,
                                    std::vector<std::string>& _filename_vec);
         bool _WriteFile(const void* _data, size_t _len, FILE* _file);
-        void _CloseLogFile();
+
         bool _CacheLogs();
     private:
         XXLogConfig config_;
@@ -60,6 +62,7 @@ namespace xxlog {
         time_t last_time_ = 0;
         uint64_t last_tick_ = 0;
         char last_file_path_[1024] = {0};
+        mars::xlog::LogBaseBuffer* log_buff_ = nullptr;
     };
 }
 

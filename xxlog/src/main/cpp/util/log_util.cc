@@ -4,8 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <android/log.h>
+#include <unistd.h>
 #include "config.h"
 #include "log_util.h"
+#include <sys/vfs.h>
 namespace xxlog {
 
     //这里不能加日志，会导致循环调用
@@ -85,6 +87,35 @@ namespace xxlog {
         filenameprefix += temp;
 
         return filenameprefix;
+    }
+
+    intmax_t xxlogger_pid()
+    {
+        static intmax_t pid = getpid();
+        return pid;
+    }
+
+    void GetMarkInfo(char* _info, size_t _info_len) {
+        struct timeval tv;
+        gettimeofday(&tv, 0);
+        time_t sec = tv.tv_sec;
+        struct tm tm_tmp = *localtime((const time_t*)&sec);
+        char tmp_time[64] = {0};
+        strftime(tmp_time, sizeof(tmp_time), "%Y-%m-%d %z %H:%M:%S", &tm_tmp);
+        snprintf(_info, _info_len, "[%d,%d][%s]", xxlogger_pid(), gettid(), tmp_time);
+    }
+
+    space_info Space(const char *path) {
+        struct statfs vfs;
+        space_info info;
+        if (::statfs(path, &vfs) == 0) {
+            info.capacity = vfs.f_blocks * vfs.f_bsize;
+            info.free = vfs.f_bfree * vfs.f_bsize;
+            info.available = vfs.f_bavail * vfs.f_bsize;
+        } else {
+            info.capacity = info.free = info.available = 0;
+        }
+        return info;
     }
 
 }

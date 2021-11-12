@@ -14,18 +14,20 @@ namespace xxlog {
     public:
         XXLoggerAppender(const XXLogConfig &_config);
         void SetMaxAliveDuration(long _max_time);
-        void SetConsoleLog(bool _is_open);
         void Open(const XXLogConfig &_config);
-        void Write(const XXLoggerInfo &_info, const char *_log);
-        void _WriteSync(const XXLoggerInfo &_info, const char *_log);
-        void _WriteAsync(const XXLoggerInfo &_info, const char *_log);
+        void Write(const XXLoggerInfo *_info, const char *_log);
+        void WriteTips2File(const char* _tips_format, ...);
         void SetMode(AppenderMode _mode);
         void SetMaxFileSize(uint64_t _max_byte_size);
         void Close();
         void Flush();
+        void FlushSync();
 
     private:
         void _AsyncLogThread();
+        void _WriteSync(const XXLoggerInfo *_info, const char *_log);
+        void _WriteAsync(const XXLoggerInfo *_info, const char *_log);
+        bool _IsMMapFileOpen();
 
     private:
         Thread thread_async_;
@@ -36,6 +38,8 @@ namespace xxlog {
         bool log_close_ = true;
         Condition cond_buffer_async_;
         mars::xlog::LogBaseBuffer* log_buff_ = nullptr;
+        int mmap_fd_ = -1;
+        char *mmap_buf_ = nullptr;
 
     };
 

@@ -57,7 +57,7 @@ Java_com_luoxuwei_xxlog_XXLog_logWrite2
     xxlog_info.filename = NULL == filename_cstr ? "" : filename_cstr;
     xxlog_info.func_name = NULL == funcname_cstr ? "" : funcname_cstr;
 
-    Singleton<xxlog::Logger>::getInstance()->Write(xxlog_info, NULL == log_cstr? "NULL == log" : log_cstr);
+    Singleton<xxlog::Logger>::getInstance()->Write(&xxlog_info, NULL == log_cstr? "NULL == log" : log_cstr);
 
     if (NULL != _tag) {
         env->ReleaseStringUTFChars(_tag, tag_cstr);
@@ -151,4 +151,28 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_luoxuwei_xxlog_XXLog_setConsoleLogOpen
         (JNIEnv *env, jclass clazz, jboolean _is_open) {
     Singleton<xxlog::Logger>::getInstance()->SetConsoleLogOpen(_is_open);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_luoxuwei_xxlog_XXLog_appenderClose
+        (JNIEnv *env, jclass clazz) {
+    Singleton<xxlog::Logger>::getInstance()->Close();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_luoxuwei_xxlog_XXLog_setMaxFileSize
+        (JNIEnv *env, jclass clazz,  jlong _max_size) {
+    Singleton<xxlog::Logger>::getInstance()->SetMaxFileSize(_max_size);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_luoxuwei_xxlog_XXLog_setMaxAliveTime
+        (JNIEnv *env, jclass clazz,  jlong _max_time) {
+    Singleton<xxlog::Logger>::getInstance()->SetMaxAliveTime(_max_time);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_luoxuwei_xxlog_XXLog_appenderFlush
+        (JNIEnv *env, jclass clazz, jboolean _is_sync) {
+    Singleton<xxlog::Logger>::getInstance()->Flush(_is_sync);
 }

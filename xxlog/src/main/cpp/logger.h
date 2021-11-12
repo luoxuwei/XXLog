@@ -18,10 +18,10 @@ namespace xxlog {
         bool ConsoleLogOpen();
         void Open(const XXLogConfig &_config);
         void Close();
-        void Flush();
+        void Flush(bool _is_sync);
         void SetMaxFileSize(long _size);
         void SetMaxAliveTime(long _aliveSeconds);
-        void Write(const XXLoggerInfo &_loggerInfo, const char *_log);
+        void Write(const XXLoggerInfo *_loggerInfo, const char *_log);
         ~Logger();
     private:
         LogLevel log_level_ = kLevelNone;

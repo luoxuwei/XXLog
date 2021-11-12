@@ -86,6 +86,12 @@ namespace xxlog {
         Func cb;
         cb.swap(_thread->cb_);
         cb();
+
+        {
+            MutexGuard _guard(_thread->mutex_);
+            _thread->started_ = false;
+        }
+
         return 0;
     }
 

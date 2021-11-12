@@ -30,8 +30,8 @@ namespace xxlog {
         xxlogger_appender_ = new XXLoggerAppender(_config);
     }
 
-    void Logger::Write(const XXLoggerInfo &_loggerInfo, const char *_log) {
-        if (consolelog_open_) ConsoleLog(&_loggerInfo, _log);
+    void Logger::Write(const XXLoggerInfo *_loggerInfo, const char *_log) {
+        if (consolelog_open_) ConsoleLog(_loggerInfo, _log);
         if (NULL == xxlogger_appender_) return;
         xxlogger_appender_->Write(_loggerInfo, _log);
     }
@@ -44,9 +44,24 @@ namespace xxlog {
         return consolelog_open_;
     }
 
-    void Logger::Flush() {
+    void Logger::Flush(bool _is_sync) {
         if (NULL == xxlogger_appender_) return;
-        xxlogger_appender_->Flush();
+        _is_sync? xxlogger_appender_->FlushSync() : xxlogger_appender_->Flush();
+    }
+
+    void Logger::Close() {
+        if (NULL == xxlogger_appender_) return;
+        xxlogger_appender_->Close();
+    }
+
+    void Logger::SetMaxFileSize(long _size) {
+        if (NULL == xxlogger_appender_) return;
+        xxlogger_appender_->SetMaxFileSize(_size);
+    }
+
+    void Logger::SetMaxAliveTime(long _aliveSeconds) {
+        if (NULL == xxlogger_appender_) return;
+        xxlogger_appender_->SetMaxAliveDuration(_aliveSeconds);
     }
 
 }

@@ -12,15 +12,17 @@
 #include <util/log_util.h>
 #include "log_file.h"
 #include <vector>
-#include <sys/vfs.h>
 
+#include "log_zlib_buffer.h"
 #define LOG_EXT "xlog"
 
 namespace xxlog {
     static Mutex sg_mutex_dir_attr; //log目录的锁
     static const long kMinLogAliveTime = 24 * 60 * 60;    // 1 days in second
 
-    LogFile::LogFile(const XXLogConfig &_config) : config_(_config) {
+    LogFile::LogFile(const XXLogConfig &_config)
+    : config_(_config)
+    , log_buff_(new mars::xlog::LogZlibBuffer(nullptr, 0, true, _config.pub_key.c_str())) {
 
     }
 
@@ -125,12 +127,8 @@ namespace xxlog {
         }
 
         static const uintmax_t kAvailableSizeThreshold = (uintmax_t)1 * 1024 * 1024 * 1024;   // 1G
-        struct statfs vfs;
-        uintmax_t available = 0;
-        if (::statfs(config_.cachedir.c_str(), &vfs) == 0) {
-            available = vfs.f_bavail * vfs.f_bsize;
-        }
-        if (available < kAvailableSizeThreshold) {
+        space_info info = Space(config_.cachedir.c_str());
+        if (info.available < kAvailableSizeThreshold) {
             return false;
         }
 
@@ -150,7 +148,7 @@ namespace xxlog {
             if (_OpenLogFile(config_.logdir)) {
                 _WriteFile(_data, _len, logfile_);
                 if (kAppenderAsync == config_.mode) {
-                    _CloseLogFile();
+                    CloseLogFile();
                 }
             }
             return;
@@ -166,7 +164,7 @@ namespace xxlog {
         if ((cache_logs || FileExists(logcachefilepath)) && _OpenLogFile(config_.cachedir)) {
             _WriteFile(_data, _len, logfile_);
             if (kAppenderAsync == config_.mode) {
-                _CloseLogFile();
+                CloseLogFile();
             }
 
             if (cache_logs || !_move_file) {
@@ -177,7 +175,7 @@ namespace xxlog {
             _MakeLogFileName(tv, config_.logdir, config_.nameprefix.c_str(), LOG_EXT, logfilepath , 1024);
             if (AppendFile(logcachefilepath, logfilepath)) {
                 if (kAppenderSync == config_.mode) {
-                    _CloseLogFile();
+                    CloseLogFile();
                 }
                 RemoveFileOrDirectory(logcachefilepath);
             }
@@ -190,26 +188,26 @@ namespace xxlog {
         if (open_success) {
             write_success = _WriteFile(_data, _len, logfile_);
             if (kAppenderAsync == config_.mode) {
-                _CloseLogFile();
+                CloseLogFile();
             }
         }
 
         //正式文件写失败，但有缓存目录，可以继续尝试写到缓存，多一道防护
         if (!write_success) {
             if (open_success && kAppenderSync == config_.mode) {
-                _CloseLogFile();
+                CloseLogFile();
             }
 
             if (_OpenLogFile(config_.cachedir)) {
                 _WriteFile(_data, _len, logfile_);
                 if (kAppenderAsync == config_.mode) {
-                    _CloseLogFile();
+                    CloseLogFile();
                 }
             }
         }
     }
 
-    void LogFile::_CloseLogFile() {
+    void LogFile::CloseLogFile() {
         MutexGuard _file_log(mutex_log_file_);
         if (nullptr == logfile_) return;
 
@@ -275,9 +273,9 @@ namespace xxlog {
             snprintf(log, sizeof(log), "[F][ last log file:%s from %s to %s, time_diff:%ld, tick_diff:%u\n",
                     last_file_path_, last_time_str, now_time_str, now_time-last_time_, now_tick-last_tick_);
 
-/*            AutoBuffer tmp_buff;
+            AutoBuffer tmp_buff;
             log_buff_->Write(log, strnlen(log, sizeof(log)), tmp_buff);
-            __WriteFile(tmp_buff.Ptr(), tmp_buff.Length(), logfile_);*/
+            _WriteFile(tmp_buff.Ptr(), tmp_buff.Length(), logfile_);
         }
 
         memcpy(last_file_path_, logfilepath, sizeof(last_file_path_));
@@ -404,13 +402,13 @@ namespace xxlog {
             ftruncate(fileno(_file), before_len);
             fseek(_file, 0, SEEK_END);
 
-            /*char err_log[256] = {0};
+            char err_log[256] = {0};
             snprintf(err_log, sizeof(err_log), "\nwrite file error:%d\n", err);
 
             AutoBuffer tmp_buff;
             log_buff_->Write(err_log, strnlen(err_log, sizeof(err_log)), tmp_buff);
 
-            fwrite(tmp_buff.Ptr(), tmp_buff.Length(), 1, _file);*/
+            fwrite(tmp_buff.Ptr(), tmp_buff.Length(), 1, _file);
 
             return false;
         }

@@ -77,8 +77,9 @@ namespace xxlog {
         {
             MutexGuard _lock(mutex_buffer_async_);
             log_close_ = false;
-            SetMode(config_.mode);
         }
+
+        SetMode(config_.mode);
 
         char mark_info[512] = {0};
         GetMarkInfo(mark_info, sizeof(mark_info));

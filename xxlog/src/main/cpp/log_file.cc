@@ -148,7 +148,7 @@ namespace xxlog {
             if (_OpenLogFile(config_.logdir)) {
                 _WriteFile(_data, _len, logfile_);
                 if (kAppenderAsync == config_.mode) {
-                    CloseLogFile();
+                    _CloseLogFile();
                 }
             }
             return;
@@ -164,7 +164,7 @@ namespace xxlog {
         if ((cache_logs || FileExists(logcachefilepath)) && _OpenLogFile(config_.cachedir)) {
             _WriteFile(_data, _len, logfile_);
             if (kAppenderAsync == config_.mode) {
-                CloseLogFile();
+                _CloseLogFile();
             }
 
             if (cache_logs || !_move_file) {
@@ -175,7 +175,7 @@ namespace xxlog {
             _MakeLogFileName(tv, config_.logdir, config_.nameprefix.c_str(), LOG_EXT, logfilepath , 1024);
             if (AppendFile(logcachefilepath, logfilepath)) {
                 if (kAppenderSync == config_.mode) {
-                    CloseLogFile();
+                    _CloseLogFile();
                 }
                 RemoveFileOrDirectory(logcachefilepath);
             }
@@ -188,27 +188,31 @@ namespace xxlog {
         if (open_success) {
             write_success = _WriteFile(_data, _len, logfile_);
             if (kAppenderAsync == config_.mode) {
-                CloseLogFile();
+                _CloseLogFile();
             }
         }
 
         //正式文件写失败，但有缓存目录，可以继续尝试写到缓存，多一道防护
         if (!write_success) {
             if (open_success && kAppenderSync == config_.mode) {
-                CloseLogFile();
+                _CloseLogFile();
             }
 
             if (_OpenLogFile(config_.cachedir)) {
                 _WriteFile(_data, _len, logfile_);
                 if (kAppenderAsync == config_.mode) {
-                    CloseLogFile();
+                    _CloseLogFile();
                 }
             }
         }
     }
 
     void LogFile::CloseLogFile() {
-        MutexGuard _file_log(mutex_log_file_);
+        MutexGuard lock(mutex_log_file_);
+        _CloseLogFile();
+    }
+
+    void LogFile::_CloseLogFile() {
         if (nullptr == logfile_) return;
 
         openfiletime_ = 0;

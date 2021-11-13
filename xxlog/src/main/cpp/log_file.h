@@ -31,6 +31,7 @@ namespace xxlog {
         void SetMaxFileSize(uint64_t _max_byte_size);
         void SetMode(AppenderMode _mode);
     private:
+        void _CloseLogFile();
         void _DelTimeoutFile(const std::string &_log_path);
         void _MoveOldFiles(const std::string& _src_path, const std::string& _dest_path,
                            const std::string& _nameprefix);

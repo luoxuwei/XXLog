@@ -23,20 +23,50 @@ namespace xxlog {
         void StartAfter(long after);
         void Join();
         const std::string &GetName() const;
-
+        static void cleanup(void* arg);
+        static void init(void* arg);
         static pid_t CurrentThreadTid();
 
     private:
+        class ThreadReference {
+        public:
+            ThreadReference(Func _cb) : cb_(std::move(_cb)), mutex_(), condtime_(mutex_) {
+
+            };
+            void AddRef() { count_++;}
+            void RemoveRef(Mutex& _lock) {
+//                ASSERT(0 < count_);
+//                ASSERT(_lock.IsLocked());
+
+                bool willdel = false;
+                count_--;
+
+                if (0 == count_) willdel = true;
+
+                _lock.Unlock();
+
+                if (willdel) delete this;
+            }
+        private:
+            ThreadReference(const ThreadReference&);
+            ThreadReference& operator=(const ThreadReference&);
+
+        public:
+            int count_ = 0;
+            bool started_ = false;
+            bool joined_ = false;
+            pthread_t tid_ = 0;
+            std::string name_;
+            Func cb_;
+            Condition condtime_;
+            Mutex mutex_;
+            long aftertime_ = LONG_MAX;
+        };
         static void *StartRoutine(void *_arg);
         static void *StartRoutineAfter(void *_arg);
-        bool started_ = false;
-        bool joined_ = false;
-        pthread_t tid_;
-        std::string name_;
-        Func cb_;
-        Condition condtime_;
-        Mutex mutex_;
-        long aftertime_;
+
+        ThreadReference *thread_reference_ = nullptr;
+
     };
 }
 

@@ -1,5 +1,5 @@
 # XXLog
-将腾讯mars 项目中xlog模块抽离成单独库，并进行重构，只保留核心功能，在架构和代码结构上进行简化和优化。去掉外部依赖和跨平台相关代码。
+将腾讯[mars](https://github.com/Tencent/mars) 项目中xlog模块抽离成单独库，并进行重构，只保留核心功能，在架构和代码结构上进行简化和优化。去掉外部依赖和跨平台相关代码。
 
 # 生成秘钥
 1.安装pyelliptic 细节可以参考wiki。
@@ -19,6 +19,12 @@ appender_open's parameter:
 xxxxxxxxxxx
 ```
 输出的appender_open's parameter就是公钥，是appenderOpen接口的参数，将私钥拷贝到log解压脚本[decode_mars_crypt_log_file.py](https://github.com/luoxuwei/XXLog/blob/main/xxlog/src/main/cpp/crypt/decode_mars_crypt_log_file.py)中覆盖PRIV_KEY字段
+
+# 添加依赖
+
+```groovy
+implementation "io.github.luoxuwei:xxlog:1.0.0"
+```
 
 # Init
 
@@ -48,3 +54,6 @@ pip2 install zstandard
 python2 decode_mars_crypt_log_file.py xxlog_20211114.xlog
 ```
 
+# 感谢
+
+本项目基于腾讯[mars](https://github.com/Tencent/mars) 中xlog模块重构

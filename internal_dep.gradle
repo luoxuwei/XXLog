@@ -1,0 +1,15 @@
+def moduleMaven = [:]
+moduleMaven["xxlog"]="io.github.luoxuwei:xxlog:$VERSION_NAME"
+
+ext.moduleMaven = moduleMaven
+
+def internalDependency(Project project, Object name) {
+    println "$name " + moduleMaven[name]
+    if (devXXLog == '1') {
+        project.project(":$name")
+    } else {
+        moduleMaven[name]
+    }
+}
+ext.internalDependency = this.&internalDependency
+

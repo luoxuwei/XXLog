@@ -6,7 +6,7 @@ import android.os.Process;
 /**
  * Created by 罗旭维 on 2021/11/7.
  */
-public class XXLog {
+public class XXLog implements Log.LogImp {
 
     public static final int LEVEL_ALL = 0;
     public static final int LEVEL_VERBOSE = 0;
@@ -62,7 +62,7 @@ public class XXLog {
 
     public native String stringFromJNI();
 
-    public static void open(int level, int mode, String cacheDir, String logDir, String nameprefix, String pubkey) {
+    public static void open(int level, int mode, String cacheDir, String logDir, String nameprefix, int cacheDays, String pubkey) {
         XXLogConfig logConfig = new XXLogConfig();
         logConfig.level = level;
         logConfig.mode = mode;
@@ -70,31 +70,98 @@ public class XXLog {
         logConfig.nameprefix = nameprefix;
         logConfig.pubkey = pubkey;
         logConfig.compressmode = ZLIB_MODE;
-        logConfig.compresslevel = 0;
         logConfig.cachedir = cacheDir;
-        logConfig.cachedays = 0;
-        appenderOpen(logConfig);
+        logConfig.cachedays = cacheDays;
+        AppenderOpen(logConfig);
     }
 
-    public static void i(String tag, final String format, final Object... obj) {
-        if (getLogLevel() <= LEVEL_INFO) {
-            String log = obj == null ? format : String.format(format, obj);
-            if (log == null) {
-                log = "";
-            }
-            logI(tag, "", "", 0, Process.myPid(), Thread.currentThread().getId(), Looper.getMainLooper().getThread().getId(), log);
-        }
+
+    @Override
+    public void logV(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_VERBOSE, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
     }
 
-    public static void logI(String tag, String filename, String funcname, int line, int pid, long tid, long maintid, String log) {
-        logWrite2(LEVEL_INFO, tag, filename, funcname, line, pid, tid, maintid,  log);
+    @Override
+    public void logI(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_INFO, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
     }
 
-    public static native void logWrite2(int level, String tag, String filename, String funcname, int line, int pid, long tid, long maintid, String log);
+    @Override
+    public void logD(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_DEBUG, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
+    }
 
-    private static native void appenderOpen(XXLogConfig logConfig);
+    @Override
+    public void logW(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_WARNING, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
+    }
 
-    public static native int getLogLevel();
+    @Override
+    public void logE(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_ERROR, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
+    }
 
-    public static native void setConsoleLogOpen(boolean open);
+    @Override
+    public void logF(String tag, String filename, String funcname, int linuxTid, int pid, long tid, long maintid, String log) {
+        LogWrite2(LEVEL_FATAL, tag, filename, funcname, linuxTid, pid, tid, maintid,  log);
+    }
+
+    public static native void LogWrite2(int level, String tag, String filename, String funcname, int line, int pid, long tid, long maintid, String log);
+
+
+    public int getLogLevel() {
+        return GetLogLevel();
+    }
+
+    @Override
+    public void setAppenderMode(int mode) {
+
+    }
+
+    @Override
+    public void appenderOpen(int level, int mode, String cacheDir, String logDir, String nameprefix, int cacheDays, String pubkey) {
+        XXLogConfig logConfig = new XXLogConfig();
+        logConfig.level = level;
+        logConfig.mode = mode;
+        logConfig.logdir = logDir;
+        logConfig.nameprefix = nameprefix;
+        logConfig.pubkey = pubkey;
+        logConfig.compressmode = ZLIB_MODE;
+        logConfig.cachedir = cacheDir;
+        logConfig.cachedays = cacheDays;
+        AppenderOpen(logConfig);
+    }
+
+    @Override
+    public void appenderClose() {
+        AppenderClose();
+    }
+
+    @Override
+    public void appenderFlush(boolean isSync) {
+        AppenderFlush(isSync);
+    }
+
+    @Override
+    public void setConsoleLogOpen(boolean isOpen) {
+        SetConsoleLogOpen(isOpen);
+    }
+
+    @Override
+    public void setMaxFileSize(long aliveSeconds) {
+        SetMaxFileSize(aliveSeconds);
+    }
+
+    @Override
+    public void setMaxAliveTime(long aliveSeconds) {
+        SetMaxAliveTime(aliveSeconds);
+    }
+
+    public static native void AppenderOpen(XXLogConfig config);
+    public static native int GetLogLevel();
+    public static native void SetConsoleLogOpen(boolean open);
+    public static native void AppenderClose();
+    public static native void SetMaxFileSize(long maxFileSize);
+    public static native void SetMaxAliveTime(long maxFileSize);
+    public static native void AppenderFlush(boolean isSync);
 }

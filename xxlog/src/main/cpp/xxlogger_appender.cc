@@ -225,7 +225,7 @@ namespace xxlog {
 
             if (log_close_) break;
 
-            cond_buffer_async_.WaitForSeconds(15 * 60 * 1000);
+            cond_buffer_async_.WaitForSeconds(15 * 60);
         }
 
     }
